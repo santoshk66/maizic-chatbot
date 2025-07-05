@@ -6,7 +6,7 @@ import { promises as fs } from "fs";
 
 dotenv.config();
 const app = express();
-const port = process.env.PORT || 10000; // Adjusted to match your deployment port
+const port = process.env.PORT || 10000;
 
 // OpenAI Setup
 const openai = new OpenAI({
@@ -17,7 +17,7 @@ const openai = new OpenAI({
 const conversations = new Map();
 const SESSION_TIMEOUT = 60 * 60 * 1000; // 1 hour in milliseconds
 
-// FAQ Database (Sample of 50 FAQs; full 200+ can be generated similarly)
+// FAQ Database (Sample of 60 FAQs, including replacement and Hindi queries)
 const faqs = {
   "record at night": "Yes, Maizic cameras like the Supercam 12MP 4K and Ultracam Falcon 5MP feature color night vision with IR and white LEDs for clear footage in low light. View recordings via the V380 Pro or Tuya Smart app.",
   "set up camera": "To set up your Maizic camera: \n1. Download the V380 Pro or Tuya Smart app.\n2. Power on the camera (or charge via solar panel for solar models).\n3. Scan the QR code in the app to pair.\n4. Connect to Wi-Fi or insert a 4G SIM.\nWatch our setup video: https://www.youtube.com/@MaizicSmarthome. Call 9871142290 for help!",
@@ -29,6 +29,10 @@ const faqs = {
   "amazon link": "Shop Maizic products on Amazon India: https://www.amazon.in/s?k=Maizic+Smarthome. Example: Maizic 3MP Indoor Camera (https://www.amazon.in/Maizic-Smarthome-Indoor-Security-Camera/dp/B0CH3R7ZJY).",
   "flipkart link": "Find Maizic products on Flipkart: https://www.flipkart.com/search?q=Maizic+Smarthome. Example: Maizic India Security Camera (https://www.flipkart.com/maizic-india-security-camera/p/itm0c2bdedce5c6e).",
   "buy product": "Purchase Maizic products at https://www.maizic.com, Amazon (https://www.amazon.in/s?k=Maizic+Smarthome), or Flipkart (https://www.flipkart.com/search?q=Maizic+Smarthome). Need product suggestions? Let me know!",
+  "replace product": "To replace your Maizic product, check the return policy of the platform where you purchased it. For Amazon, replacements are typically available within 30 days (visit https://www.amazon.in/s?k=Maizic+Smarthome). For Flipkart, a 30-day replacement policy applies (check https://www.flipkart.com/search?q=Maizic+Smarthome). If purchased from maizic.com, contact our support team at 9871142290 or visit https://www.maizic.com/contact.",
+  "product badalna hai": "Agar aapko Maizic product badalna hai, toh jahan se kharida tha wahan ka return policy check karein. Amazon par 30 din ke andar replacement hota hai (https://www.amazon.in/s?k=Maizic+Smarthome). Flipkart par bhi 30 din ka replacement policy hai (https://www.flipkart.com/search?q=Maizic+Smarthome). Maizic.com se kharida hai toh 9871142290 par sampark karein ya https://www.maizic.com/contact visit karein.",
+  "camera kharab hai": "Agar aapka Maizic camera kharab hai, toh yeh karein: \n1. Lens ko saaf karein.\n2. V380 Pro ya Tuya Smart app mein software update check karein.\n3. Camera ko 5 second ke liye reset button dabakar reset karein.\nAur madad ke liye, 9871142290 par sampark karein.",
+  "camera not working": "If your Maizic camera isn’t working, try: \n1. Cleaning the lens.\n2. Checking for software updates in the V380 Pro or Tuya Smart app.\n3. Resetting the camera by holding the reset button for 5 seconds.\nContact 9871142290 for further assistance.",
   "camera for home": "For home security, try the Maizic Mini Fox 3MP FHD Indoor Camera with 360° rotation and motion tracking. Buy it at https://www.amazon.in/s?k=Maizic+Smarthome.",
   "outdoor camera": "The Maizic Supercam 12MP 4K Solar Dual Lens is ideal for outdoor use, with IP66 waterproofing and solar power. Check it out: https://www.flipkart.com/search?q=Maizic+Smarthome.",
   "dashcam features": "The Maizic Dashcam Pro offers 1080p recording, night vision, and loop recording. Perfect for vehicle safety! Available at https://www.maizic.com.",
@@ -68,15 +72,19 @@ const faqs = {
   "track order flipkart": "Track your Maizic order on Flipkart via your account at https://www.flipkart.com or contact Flipkart support.",
   "camera for office": "The Maizic Mini Fox 3MP is great for office monitoring with 360° rotation. Buy at https://www.amazon.in/s?k=Maizic+Smarthome.",
   "battery life camera": "Maizic solar cameras like the Supercam 12MP last months with solar charging; battery-only models last 5–7 days. Check https://www.maizic.com.",
-  "why is my camera blurry": "If your Maizic camera is blurry, clean the lens, check for software updates in the V380 Pro app, or reset the camera. Call 9871142290 for help."
-}; // No trailing comma
+  "why is my camera blurry": "If your Maizic camera is blurry, clean the lens, check for software updates in the V380 Pro app, or reset the camera. Call 9871142290 for help.",
+  "return product": "To return or replace your Maizic product, check the platform’s policy: Amazon (30-day returns, https://www.amazon.in/s?k=Maizic+Smarthome), Flipkart (30-day returns, https://www.flipkart.com/search?q=Maizic+Smarthome), or maizic.com (contact 9871142290 or https://www.maizic.com/contact).",
+  "product kharab hai": "Agar aapka Maizic product kharab hai, toh yeh karein: \n1. Product ko check karein aur reset karein.\n2. V380 Pro ya Tuya Smart app update karein.\n3. Agar problem rahe, toh 9871142290 par sampark karein.",
+  "camera offline": "If your Maizic camera is offline, check Wi-Fi signal, reset the camera (hold reset button for 5 seconds), or update the V380 Pro app. Call 9871142290 for help.",
+  "emi options amazon": "Amazon offers EMI options for Maizic products, depending on your bank. Check details at https://www.amazon.in/s?k=Maizic+Smarthome or contact Amazon support."
+};
 
-// Note: To reach 200+ FAQs, extend the faqs object with additional entries like:
-// - Product-specific: "Supercam zoom range", "Dashcam G-sensor support"
-// - Troubleshooting: "Camera offline", "Projector no sound"
-// - Purchase: "EMI on Flipkart", "Bulk order discounts"
+// Note: To reach 200+ FAQs, extend the faqs object with:
+// - Product-specific: "Supercam zoom range", "Dashcam G-sensor"
+// - Troubleshooting: "Projector no sound", "Smartwatch not pairing"
+// - Purchase: "Bulk order discounts", "Flipkart discount codes"
 // - Silly: "Can camera see ghosts?", "Is Maizic from the future?"
-// - Comparisons: "Supercam vs. Ultracam", "Maizic vs. Xiaomi"
+// - Hindi queries: "Camera kaise kharidein?", "Warranty kaise badhayein?"
 
 // CORS for maizic.com
 app.use(cors({
@@ -114,14 +122,16 @@ You are a highly skilled, friendly, and professional customer care executive for
 - **Amazon Links**: General store: https://www.amazon.in/s?k=Maizic+Smarthome. Example product: Maizic 3MP Indoor Camera (https://www.amazon.in/Maizic-Smarthome-Indoor-Security-Camera/dp/B0CH3R7ZJY).
 - **Flipkart Links**: General store: https://www.flipkart.com/search?q=Maizic+Smarthome. Example product: Maizic India Security Camera (https://www.flipkart.com/maizic-india-security-camera/p/itm0c2bdedce5c6e).
 - **Product Purchase**: Suggest https://www.maizic.com, Amazon, or Flipkart based on user preference.
+- **Replacement/Returns**: For replacement or returns, guide users to the platform’s policy (Amazon: 30-day returns, Flipkart: 30-day returns, maizic.com: contact support). Provide specific links and contact details.
 
 🎯 **Response Guidelines**:
 - **Tone**: Friendly, polite, professional (e.g., “Happy to assist!” or “Let’s get that sorted!”).
 - **Length**: 2–4 sentences or bullet points for clarity. Avoid verbosity.
 - **Accuracy**: Only provide verified information. If unsure, say: “I’m not sure about that, but I can connect you with our technical team at 9871142290.”
+- **Language**: Respond in the user’s language (English or Hindi) based on the query. For Hindi queries (e.g., “camera kharab hai”), use simple, clear Hindi and offer English fallback if needed.
 - **Multi-Intent**: Address all user questions in a single query (e.g., setup + YouTube link).
 - **Proactive**: Offer next steps (e.g., “Check our YouTube for a setup video!” or “Need help choosing a product?”).
-- **Silly Questions**: For off-topic or silly queries (e.g., “What’s the weather?” or “Tell me a joke”), respond politely with a light-hearted pivot back to Maizic products (e.g., “I don’t predict the weather, but our weatherproof cameras work great in any condition!”).
+- **Silly Questions**: For off-topic or silly queries (e.g., “What’s the weather?” or “Tell me a joke”), respond politely with a light-hearted pivot back to Maizic products.
 - **Escalation**: For complex issues, say: “Could you provide more details? Alternatively, our team at 9871142290 can assist further.”
 - **Links**: Provide specific links when requested (YouTube, Amazon, Flipkart, product videos) and suggest related resources.
 - **Formatting**: Use Markdown for clarity (e.g., **bold** for emphasis, bullet points for lists).
@@ -129,8 +139,10 @@ You are a highly skilled, friendly, and professional customer care executive for
 💡 **Example Responses**:
 - **User**: “Does Supercam work at night?”  
   **Response**: **Maizic Smarthome Support**: Yes, the Supercam 12MP 4K Solar Dual Lens camera has color night vision with IR and white LEDs for clear footage in low light. View it via the V380 Pro app. See it in action: https://www.youtube.com/watch?v=tuBgwalfkEQ.
-- **User**: “How to set up camera and where to buy it?”  
-  **Response**: **Maizic Smarthome Support**: To set up your Maizic camera: 1) Download V380 Pro app. 2) Power on and scan QR code. 3) Connect to Wi-Fi/4G. Buy it on Amazon (https://www.amazon.in/s?k=Maizic+Smarthome) or Flipkart (https://www.flipkart.com/search?q=Maizic+Smarthome).
+- **User**: “i want to replace my product”  
+  **Response**: **Maizic Smarthome Support**: To replace your Maizic product, check the return policy of the platform where you purchased it. For Amazon, replacements are typically available within 30 days (visit https://www.amazon.in/s?k=Maizic+Smarthome). For Flipkart, a 30-day replacement policy applies (check https://www.flipkart.com/search?q=Maizic+Smarthome). If purchased from maizic.com, contact our support team at 9871142290 or visit https://www.maizic.com/contact.
+- **User**: “camera kharab hai”  
+  **Response**: **Maizic Smarthome Support**: Agar aapka Maizic camera kharab hai, toh yeh karein: 1) Lens ko saaf karein. 2) V380 Pro ya Tuya Smart app mein software update check karein. 3) Camera ko 5 second ke liye reset button dabakar reset karein. Aur madad ke liye, 9871142290 par sampark karein.
 - **User**: “What’s the meaning of life?”  
   **Response**: **Maizic Smarthome Support**: That’s a big question! While I ponder that, how about keeping life secure with a Maizic Supercam 12MP? Check it out: https://www.amazon.in/s?k=Maizic+Smarthome.
 
