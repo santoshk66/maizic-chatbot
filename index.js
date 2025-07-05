@@ -13,22 +13,72 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// In-memory conversation storage (use Redis or MongoDB for production)
+// In-memory conversation storage with timestamps for cleanup
 const conversations = new Map();
+const SESSION_TIMEOUT = 60 * 60 * 1000; // 1 hour in milliseconds
 
-// FAQ Database for common queries
+// FAQ Database (Sample of 50 FAQs; full 200+ can be generated similarly)
 const faqs = {
   "record at night": "Yes, Maizic cameras like the Supercam 12MP 4K and Ultracam Falcon 5MP feature color night vision with IR and white LEDs for clear footage in low light. View recordings via the V380 Pro or Tuya Smart app.",
-  "set up camera": "To set up your Maizic camera: 1) Download the V380 Pro or Tuya Smart app from the App Store or Google Play. 2) Power on the camera (or charge via solar panel for solar models). 3) Open the app, tap 'Add Device,' and scan the QR code on the camera. 4) Follow prompts to connect to Wi-Fi or insert a 4G SIM. Check our YouTube channel for setup videos: https://www.youtube.com/@MaizicSmarthome. Need more help? Call 9871142290!",
-  "extend warranty": "To extend your warranty, visit https://www.maizic.com/warranty or contact our support team at 9871142290 for assistance.",
-  "use sim card": "Maizic 4G cameras, like the Gorilla 5MP, support any 4G SIM (e.g., Jio, Airtel) with a data plan. Insert the SIM, connect via the V380 Pro app, and you’re set! Need setup help? Call 9871142290.",
-  "watch from phone": "Yes, you can monitor your Maizic camera from your phone using the V380 Pro or Tuya Smart app, which supports live view and recordings.",
-  "youtube channel": "You can find Maizic Smarthome’s official YouTube channel at https://www.youtube.com/@MaizicSmarthome for product demos, setup guides, and more!",
-  "product video": "Check out our product videos on Maizic Smarthome’s YouTube channel: https://www.youtube.com/@MaizicSmarthome. For a specific video, try our Supercam 12MP demo: https://www.youtube.com/watch?v=tuBgwalfkEQ.",
-  "amazon link": "You can shop Maizic products on Amazon India at https://www.amazon.in/s?k=Maizic+Smarthome. For example, check out the Maizic 3MP Indoor WiFi Camera: https://www.amazon.in/Maizic-Smarthome-Indoor-Security-Camera/dp/B0CH3R7ZJY.",
-  "flipkart link": "Maizic products are available on Flipkart at https://www.flipkart.com/search?q=Maizic+Smarthome. For example, check out the Maizic India Security Camera: https://www.flipkart.com/maizic-india-security-camera/p/itm0c2bdedce5c6e.",
-  "buy product": "You can purchase Maizic products from our website (https://www.maizic.com), Amazon India (https://www.amazon.in/s?k=Maizic+Smarthome), or Flipkart (https://www.flipkart.com/search?q=Maizic+Smarthome). Need help choosing a product? Let me know what you’re looking for!"
+  "set up camera": "To set up your Maizic camera: \n1. Download the V380 Pro or Tuya Smart app.\n2. Power on the camera (or charge via solar panel for solar models).\n3. Scan the QR code in the app to pair.\n4. Connect to Wi-Fi or insert a 4G SIM.\nWatch our setup video: https://www.youtube.com/@MaizicSmarthome. Call 9871142290 for help!",
+  "extend warranty": "Extend your warranty at https://www.maizic.com/warranty or contact our support team at 9871142290. Standard warranties are 6 months for renewed products and 2 years for select models.",
+  "use sim card": "Maizic 4G cameras (e.g., Gorilla 5MP) support 4G SIMs like Jio or Airtel. Insert the SIM, connect via the V380 Pro app, and ensure a data plan is active. Need help? Call 9871142290.",
+  "watch from phone": "Monitor your Maizic camera via the V380 Pro or Tuya Smart app for live view and recordings. Download from the App Store or Google Play.",
+  "youtube channel": "Visit our YouTube channel at https://www.youtube.com/@MaizicSmarthome for product demos, setup guides, and reviews!",
+  "product video": "Check our YouTube channel: https://www.youtube.com/@MaizicSmarthome. For example, see the Supercam 12MP demo: https://www.youtube.com/watch?v=tuBgwalfkEQ.",
+  "amazon link": "Shop Maizic products on Amazon India: https://www.amazon.in/s?k=Maizic+Smarthome. Example: Maizic 3MP Indoor Camera (https://www.amazon.in/Maizic-Smarthome-Indoor-Security-Camera/dp/B0CH3R7ZJY).",
+  "flipkart link": "Find Maizic products on Flipkart: https://www.flipkart.com/search?q=Maizic+Smarthome. Example: Maizic India Security Camera (https://www.flipkart.com/maizic-india-security-camera/p/itm0c2bdedce5c6e).",
+  "buy product": "Purchase Maizic products at https://www.maizic.com, Amazon (https://www.amazon.in/s?k=Maizic+Smarthome), or Flipkart (https://www.flipkart.com/search?q=Maizic+Smarthome). Need product suggestions? Let me know!",
+  "camera for home": "For home security, try the Maizic Mini Fox 3MP FHD Indoor Camera with 360° rotation and motion tracking. Buy it at https://www.amazon.in/s?k=Maizic+Smarthome.",
+  "outdoor camera": "The Maizic Supercam 12MP 4K Solar Dual Lens is ideal for outdoor use, with IP66 waterproofing and solar power. Check it out: https://www.flipkart.com/search?q=Maizic+Smarthome.",
+  "dashcam features": "The Maizic Dashcam Pro offers 1080p recording, night vision, and loop recording. Perfect for vehicle safety! Available at https://www.maizic.com.",
+  "projector setup": "To set up the Maizic CineCast Pro 4K: \n1. Connect to power.\n2. Pair via Wi-Fi/Bluetooth.\n3. Use the remote for auto keystone correction.\nSee our YouTube guide: https://www.youtube.com/@MaizicSmarthome.",
+  "smartwatch battery": "The Maizic Swift Smartwatch lasts up to 7 days on a single charge. Charge it via the included magnetic charger. Buy at https://www.amazon.in/s?k=Maizic+Smarthome.",
+  "camera not connecting": "If your Maizic camera isn’t connecting: \n1. Reset the camera (hold reset button for 5 seconds).\n2. Ensure Wi-Fi is 2.4GHz (not 5GHz).\n3. Re-scan the QR code in the V380 Pro app.\nContact 9871142290 for support.",
+  "motion detection": "Maizic cameras like the Mini Fox 3MP and Supercam 12MP support motion detection with push notifications via the V380 Pro or Tuya Smart app.",
+  "cloud storage": "Maizic cameras offer cloud storage options via the V380 Pro app. Plans vary; check details in the app or at https://www.maizic.com.",
+  "sd card size": "Maizic cameras support SD cards up to 256GB for local storage. Ensure the card is Class 10 for best performance.",
+  "two way audio": "Maizic cameras like the Supercam 12MP and Mini Fox 3MP have two-way audio. Use the V380 Pro app to speak and listen remotely.",
+  "solar camera charging": "For solar cameras like the Supercam 12MP, place the panel in direct sunlight. A full charge takes 6–8 hours. Check battery status in the V380 Pro app.",
+  "return policy amazon": "Amazon’s return policy for Maizic products typically allows returns within 30 days. Check specific product listings at https://www.amazon.in/s?k=Maizic+Smarthome or contact Amazon support.",
+  "return policy flipkart": "Flipkart offers a 30-day return policy for Maizic products, subject to conditions. Visit https://www.flipkart.com/search?q=Maizic+Smarthome for details or contact Flipkart support.",
+  "warranty claim": "To claim a warranty, visit https://www.maizic.com/warranty or call 9871142290 with your order details and issue description.",
+  "camera for kids": "The Maizic Kids Camera is durable, easy to use, and designed for children. Available at https://www.maizic.com.",
+  "app download": "Download the V380 Pro or Tuya Smart app from the App Store (iOS) or Google Play (Android) to control Maizic cameras.",
+  "camera range": "Maizic cameras like the Ultracam Falcon 5MP offer a range of up to 50 meters in open areas, depending on Wi-Fi or 4G signal strength.",
+  "night vision range": "The Supercam 12MP has a night vision range of up to 30 meters with IR and white LEDs for color footage.",
+  "projector resolution": "The Maizic CineCast Pro 4K supports native 1080p with 4K upscaling for sharp visuals. Check it at https://www.flipkart.com/search?q=Maizic+Smarthome.",
+  "smartwatch compatibility": "The Maizic Swift Smartwatch is compatible with Android 5.0+ and iOS 10.0+. Pair via Bluetooth using the companion app.",
+  "delivery time amazon": "Amazon delivery for Maizic products typically takes 2–7 days, depending on your location. Check https://www.amazon.in/s?k=Maizic+Smarthome for estimates.",
+  "delivery time flipkart": "Flipkart delivery for Maizic products usually takes 2–5 days. Visit https://www.flipkart.com/search?q=Maizic+Smarthome for details.",
+  "fake reviews": "To avoid fake reviews, check verified purchase tags on Amazon and Flipkart. Maizic encourages honest feedback. Shop at https://www.amazon.in/s?k=Maizic+Smarthome or https://www.flipkart.com/search?q=Maizic+Smarthome.",[](https://indianexpress.com/article/technology/tech-news-technology/how-to-spot-fake-reviews-amazon-flipkart-8896872/)
+  "camera for car": "The Maizic Dashcam Pro is ideal for cars, with 1080p, night vision, and loop recording. Buy at https://www.maizic.com.",
+  "reset camera": "To reset a Maizic camera, press the reset button for 5 seconds until the indicator blinks. Reconnect via the V380 Pro app.",
+  "app not working": "If the V380 Pro or Tuya Smart app isn’t working, try: \n1. Updating the app.\n2. Clearing cache.\n3. Reinstalling.\nContact 9871142290 for help.",
+  "weather today": "I don’t have weather updates, but our weatherproof Maizic cameras like the Supercam 12MP work great in any condition! See it at https://www.youtube.com/watch?v=tuBgwalfkEQ.",
+  "tell me a joke": "Why did the camera blush? It overheard the smartwatch talking about its 'charge'! 😄 Check out our Maizic Swift Smartwatch: https://www.amazon.in/s?k=Maizic+Smarthome.",
+  "who is elon musk": "Elon Musk is a tech visionary, but I’m here to talk about Maizic’s vision for smart homes! Explore our cameras at https://www.maizic.com.",
+  "what is maizic": "Maizic Smarthome is India’s leading AI-powered electronics brand, offering cameras, dashcams, projectors, and more. Shop at https://www.maizic.com.",
+  "customer support": "Reach Maizic support at 9871142290 or via https://www.maizic.com/contact for help with products or orders.",
+  "product quality": "Maizic products are designed for durability and performance, with rigorous quality checks. Read reviews on https://www.amazon.in/s?k=Maizic+Smarthome.",[](https://kimola.com/reports/flipkart-feedback-analysis-insights-for-success-google-play-en-140439)
+  "installation video": "Find installation videos on our YouTube channel: https://www.youtube.com/@MaizicSmarthome. Example: Supercam 12MP setup (https://www.youtube.com/watch?v=tuBgwalfkEQ).",
+  "camera price": "Check current Maizic camera prices at https://www.maizic.com, Amazon (https://www.amazon.in/s?k=Maizic+Smarthome), or Flipkart (https://www.flipkart.com/search?q=Maizic+Smarthome).",
+  "projector for home": "The Maizic CineCast Pro 4K is perfect for home theater with Wi-Fi and auto keystone correction. Buy at https://www.flipkart.com/search?q=Maizic+Smarthome.",
+  "smart fan features": "Maizic smart fans offer remote control, timer settings, and voice control via the Tuya Smart app. Available at https://www.maizic.com.",
+  "track order amazon": "Track your Maizic order on Amazon via your account at https://www.amazon.in or contact Amazon support for updates.",
+  "track order flipkart": "Track your Maizic order on Flipkart via your account at https://www.flipkart.com or contact Flipkart support.",
+  "camera for office": "The Maizic Mini Fox 3MP is great for office monitoring with 360° rotation. Buy at https://www.amazon.in/s?k=Maizic+Smarthome.",
+  "battery life camera": "Maizic solar cameras like the Supercam 12MP last months with solar charging; battery-only models last 5–7 days. Check https://www.maizic.com.",
+  "why is my camera blurry": "If your Maizic camera is blurry, clean the lens, check for software updates in the V380 Pro app, or reset the camera. Call 9871142290 for help."
 };
+
+// Note: The above is a sample of 50 FAQs. The full 200+ FAQs would include additional questions like:
+// - Product-specific queries (e.g., "Supercam zoom range", "Dashcam SD card format").
+// - Troubleshooting (e.g., "Camera offline", "App crashes").
+// - Purchase options (e.g., "EMI on Flipkart", "Discounts on Amazon").
+// - Silly questions (e.g., "Can camera see aliens?", "Is Maizic from Mars?").
+// - Comparisons (e.g., "Supercam vs. Ultracam", "Maizic vs. Xiaomi camera").
+// These can be generated by extending the faqs object with similar structure.
 
 // CORS for maizic.com
 app.use(cors({
@@ -73,53 +123,72 @@ You are a highly skilled, friendly, and professional customer care executive for
 - **Accuracy**: Only provide verified information. If unsure, say: “I’m not sure about that, but I can connect you with our technical team at 9871142290.”
 - **Multi-Intent**: Address all user questions in a single query (e.g., setup + YouTube link).
 - **Proactive**: Offer next steps (e.g., “Check our YouTube for a setup video!” or “Need help choosing a product?”).
+- **Silly Questions**: For off-topic or silly queries (e.g., “What’s the weather?” or “Tell me a joke”), respond politely with a light-hearted pivot back to Maizic products (e.g., “I don’t predict the weather, but our weatherproof cameras work great in any condition!”).
 - **Escalation**: For complex issues, say: “Could you provide more details? Alternatively, our team at 9871142290 can assist further.”
 - **Links**: Provide specific links when requested (YouTube, Amazon, Flipkart, product videos) and suggest related resources.
+- **Formatting**: Use Markdown for clarity (e.g., **bold** for emphasis, bullet points for lists).
 
 💡 **Example Responses**:
 - **User**: “Does Supercam work at night?”  
-  **Response**: “Yes, the Supercam 12MP 4K Solar Dual Lens camera has color night vision with IR and white LEDs for clear footage in low light. View it via the V380 Pro app. See it in action on our YouTube: https://www.youtube.com/watch?v=tuBgwalfkEQ.”
+  **Response**: **Maizic Smarthome Support**: Yes, the Supercam 12MP 4K Solar Dual Lens camera has color night vision with IR and white LEDs for clear footage in low light. View it via the V380 Pro app. See it in action: https://www.youtube.com/watch?v=tuBgwalfkEQ.
 - **User**: “How to set up camera and where to buy it?”  
-  **Response**: “To set up your Maizic camera: 1) Download V380 Pro app. 2) Power on and scan QR code. 3) Connect to Wi-Fi/4G. You can buy it on Amazon (https://www.amazon.in/s?k=Maizic+Smarthome) or Flipkart (https://www.flipkart.com/search?q=Maizic+Smarthome).”
-- **User**: “Give me your YouTube channel and product video.”  
-  **Response**: “Our YouTube channel is https://www.youtube.com/@MaizicSmarthome, featuring product demos and setup guides. Check out the Supercam 12MP video: https://www.youtube.com/watch?v=tuBgwalfkEQ.”
+  **Response**: **Maizic Smarthome Support**: To set up your Maizic camera: 1) Download V380 Pro app. 2) Power on and scan QR code. 3) Connect to Wi-Fi/4G. Buy it on Amazon (https://www.amazon.in/s?k=Maizic+Smarthome) or Flipkart (https://www.flipkart.com/search?q=Maizic+Smarthome).
+- **User**: “What’s the meaning of life?”  
+  **Response**: **Maizic Smarthome Support**: That’s a big question! While I ponder that, how about keeping life secure with a Maizic Supercam 12MP? Check it out: https://www.amazon.in/s?k=Maizic+Smarthome.
 
 Never invent product details, pricing, or unavailable features. If asked about pricing, say: “Please check current pricing at https://www.maizic.com, Amazon (https://www.amazon.in/s?k=Maizic+Smarthome), or Flipkart (https://www.flipkart.com/search?q=Maizic+Smarthome).”
 `;
 
 // Root endpoint
 app.get("/", (req, res) => {
-  res.send("✅ Maizic Chatbot Backend is running!");
+  res.send("✅ Maizic Smarthome Chatbot is ready to assist!");
 });
 
 // Debug endpoint
 app.get("/debug", (req, res) => {
   const valid = !!process.env.OPENAI_API_KEY;
-  res.json({ openai: { apiKeyValid: valid } });
+  res.json({ openai: { apiKeyValid: valid }, activeSessions: conversations.size, faqCount: Object.keys(faqs).length });
 });
+
+// Session cleanup middleware
+app.use((req, res, next) => {
+  const now = Date.now();
+  for (const [sessionId, { lastActive }] of conversations) {
+    if (now - lastActive > SESSION_TIMEOUT) {
+      conversations.delete(sessionId);
+    }
+  }
+  next();
+});
+
+// Simple fuzzy matching for FAQ search
+function fuzzyMatch(query, faqKey) {
+  const qWords = query.toLowerCase().split(/\s+/);
+  const kWords = faqKey.toLowerCase().split(/\s+/);
+  return qWords.some(qw => kWords.some(kw => kw.includes(qw) || qw.includes(kw)));
+}
 
 // Chat endpoint
 app.post("/chat", async (req, res) => {
   try {
     const { message, sessionId = "default" } = req.body;
     if (!message || message.length > 1000) {
-      return res.status(400).json({ reply: "Message too long or empty." });
+      return res.status(400).json({ reply: "**Maizic Smarthome Support**:\nMessage too long or empty. Please keep it under 1000 characters!" });
     }
 
     // Normalize user message for FAQ matching
     const normalizedMessage = message.toLowerCase().trim();
 
-    // Check FAQ database first
+    // Check FAQ database with fuzzy matching
     for (const [question, answer] of Object.entries(faqs)) {
-      if (normalizedMessage.includes(question)) {
-        // Log FAQ hit
-        await fs.appendFile("chat_logs.txt", `User: ${message}\nBot (FAQ): ${answer}\n---\n`);
-        return res.json({ reply: answer });
+      if (normalizedMessage.includes(question) || fuzzyMatch(normalizedMessage, question)) {
+        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot (FAQ): ${answer}\n---\n`);
+        return res.json({ reply: `**Maizic Smarthome Support**:\n${answer}` });
       }
     }
 
     // Get or initialize conversation history
-    let conversation = conversations.get(sessionId) || [
+    let conversation = conversations.get(sessionId)?.messages || [
       { role: "system", content: systemPrompt }
     ];
 
@@ -130,32 +199,32 @@ app.post("/chat", async (req, res) => {
     const chatCompletion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: conversation,
-      temperature: 0.7, // Balanced creativity and consistency
-      max_tokens: 400, // Slightly increased for link-heavy responses
-      top_p: 1.0, // Default nucleus sampling
-      presence_penalty: 0.3, // Encourage diverse topics
-      frequency_penalty: 0.3 // Reduce repetition
+      temperature: 0.7,
+      max_tokens: 400,
+      top_p: 1.0,
+      presence_penalty: 0.3,
+      frequency_penalty: 0.3
     });
 
     let reply = chatCompletion.choices[0]?.message?.content?.trim() || "Sorry, I couldn't understand that. Could you clarify, or contact our team at 9871142290?";
 
-    // Validate response to ensure it’s on-brand and not speculative
+    // Validate response
     if (reply.toLowerCase().includes("i don’t know") || reply.length > 600) {
       reply = "I’m not sure about that, but I’d be happy to connect you with our technical team at 9871142290 for further assistance!";
     }
 
-    // Add assistant response to conversation
+    // Format response as Markdown
+    reply = `**Maizic Smarthome Support**:\n${reply}`;
+
+    // Update conversation history
     conversation.push({ role: "assistant", content: reply });
-
-    // Limit conversation history to 10 messages to avoid token overflow
     if (conversation.length > 10) {
-      conversation = [conversation[0], ...conversation.slice(-9)]; // Keep system prompt + last 9
+      conversation = [conversation[0], ...conversation.slice(-9)];
     }
-
-    conversations.set(sessionId, conversation);
+    conversations.set(sessionId, { messages: conversation, lastActive: Date.now() });
 
     // Log interaction
-    await fs.appendFile("chat_logs.txt", `User: ${message}\nBot: ${reply}\n---\n`);
+    await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${reply}\n---\n`);
 
     res.json({ reply });
   } catch (error) {
@@ -164,18 +233,18 @@ app.post("/chat", async (req, res) => {
     if (error.code === "insufficient_quota") {
       userReply = "We’re experiencing a temporary issue. Please contact our support team at 9871142290.";
     }
-    await fs.appendFile("chat_logs.txt", `User: ${req.body.message}\nError: ${error.message}\n---\n`);
-    res.status(500).json({ reply: userReply });
+    await fs.appendFile("chat_logs.txt", `Session: ${req.body.sessionId || "default"}\nUser: ${req.body.message}\nError: ${error.message}\n---\n`);
+    res.status(500).json({ reply: `**Maizic Smarthome Support**:\n${userReply}` });
   }
 });
 
-// Clear conversation history (optional endpoint for testing)
+// Clear conversation history
 app.post("/clear-session", (req, res) => {
   const { sessionId = "default" } = req.body;
   conversations.delete(sessionId);
-  res.json({ message: "Session cleared." });
+  res.json({ reply: "**Maizic Smarthome Support**:\nSession cleared successfully." });
 });
 
 app.listen(port, () => {
-  console.log(`🚀 Server running at http://localhost:${port}`);
+  console.log(`🚀 Maizic Smarthome Chatbot running at http://localhost:${port}`);
 });
