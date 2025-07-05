@@ -171,12 +171,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Simple fuzzy matching for FAQ search
-function fuzzyMatch(query, faqKey) {
-  const qWords = query.toLowerCase().split(/\s+/);
-  const kWords = faqKey.toLowerCase().split(/\s+/);
-  return qWords.some(qw => kWords.some(kw => kw.includes(qw) || qw.includes(kw)));
+function getSimilarityScore(a, b) {
+  const aWords = a.toLowerCase().split(/\s+/);
+  const bWords = b.toLowerCase().split(/\s+/);
+  const matchCount = aWords.filter(word => bWords.includes(word)).length;
+  return matchCount / Math.max(aWords.length, bWords.length);
 }
+
 
 // Chat endpoint
 app.post("/chat", async (req, res) => {
@@ -189,13 +190,23 @@ app.post("/chat", async (req, res) => {
     // Normalize user message for FAQ matching
     const normalizedMessage = message.toLowerCase().trim();
 
-    // Check FAQ database with fuzzy matching
+    // Improved matching using similarity score
+    let bestMatch = null;
+    let highestScore = 0;
+    
     for (const [question, answer] of Object.entries(faqs)) {
-      if (normalizedMessage.includes(question) || fuzzyMatch(normalizedMessage, question)) {
-        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot (FAQ): ${answer}\n---\n`);
-        return res.json({ reply: `**Maizic Smarthome Support**:\n${answer}` });
+      const score = getSimilarityScore(normalizedMessage, question);
+      if (score > 0.6 && score > highestScore) {
+        bestMatch = answer;
+        highestScore = score;
       }
     }
+    
+    if (bestMatch) {
+      await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot (FAQ): ${bestMatch}\n---\n`);
+      return res.json({ reply: `**Maizic Smarthome Support**:\n${bestMatch}` });
+    }
+
 
     // Get or initialize conversation history
     let conversation = conversations.get(sessionId)?.messages || [
