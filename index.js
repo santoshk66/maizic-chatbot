@@ -103,9 +103,7 @@ const faqs = {
   "mini fox installation video": "Watch the Maizic Mini Fox 3MP FHD installation video: https://youtu.be/umbiO8X5lKE.",
   "gorilla installation video": "Watch the Maizic Gorilla 5MP 4G installation video: https://youtu.be/2msKb7wQCBs.",
   "dashcam installation video": "Watch the Maizic Dashcam Pro installation video: https://youtu.be/lc-QW-OH2fY.",
-  "cinecast installation video": "Watch the Maizic CineCast Pro 4K projector installation video: https://youtu.be/895qb0NdYNI.",
-  "swift smartwatch installation video": "Watch the Maizic Swift Smartwatch setup video: https://www.youtube.com/watch?v=swift-install-901.",
-  "smart fan installation video": "Watch the Maizic Smart Fan installation video: https://www.youtube.com/watch?v=smartfan-install-234.",
+  "Round Projector installation video": "Watch the Maizic Round Projector installation video: https://youtu.be/895qb0NdYNI.",
   // Extended Product Queries
   "supercam zoom range": "The Maizic Supercam 12MP 4K offers 4x digital zoom and 360° PTZ for comprehensive coverage. Buy at https://www.maizic.com.",
   "dashcam g-sensor": "The Maizic Dashcam Pro includes a G-sensor for automatic crash detection and file protection. Buy at https://www.amazon.in/s?k=Maizic+Smarthome.",
