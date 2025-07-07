@@ -97,13 +97,6 @@ const faqs = {
   "product kharab hai": "Agar aapka Maizic product kharab hai, toh yeh karein: \n1. Product ko check karein aur reset karein (5 second ke liye reset button dabayein).\n2. V380 Pro ya Tuya Smart app update karein.\n3. Wi-Fi ya 4G connection verify karein.\nAgar problem rahe, toh 7042870887 par sampark karein ya https://www.maizic.com/contact visit karein. Setup video dekhein: https://www.youtube.com/@MaizicSmarthome.",
   "camera offline": "If your Maizic camera is offline, check the Wi-Fi signal (2.4GHz), reset the camera (hold reset button for 5 seconds), or update the V380 Pro app. Call 7042870887 for assistance.",
   "emi options amazon": "Amazon offers EMI options for Maizic products, depending on your bank. Check details at https://www.amazon.in/s?k=Maizic+Smarthome or contact Amazon support.",
-  // New product-specific installation video entries
-  "supercam installation video": "Watch the Maizic Supercam 12MP 4K Solar Dual Lens installation video: https://youtu.be/NkEJIpwCrGE.",
-  "ultracam installation video": "Watch the Maizic Ultracam Falcon 5MP installation video: https://youtu.be/-G-Eq2ljLh4.",
-  "mini fox installation video": "Watch the Maizic Mini Fox 3MP FHD installation video: https://youtu.be/umbiO8X5lKE.",
-  "gorilla installation video": "Watch the Maizic Gorilla 5MP 4G installation video: https://youtu.be/2msKb7wQCBs.",
-  "dashcam installation video": "Watch the Maizic Dashcam Pro installation video: https://youtu.be/lc-QW-OH2fY.",
-  "Round Projector installation video": "Watch the Maizic Round Projector installation video: https://youtu.be/895qb0NdYNI.",
   // Extended Product Queries
   "supercam zoom range": "The Maizic Supercam 12MP 4K offers 4x digital zoom and 360° PTZ for comprehensive coverage. Buy at https://www.maizic.com.",
   "dashcam g-sensor": "The Maizic Dashcam Pro includes a G-sensor for automatic crash detection and file protection. Buy at https://www.amazon.in/s?k=Maizic+Smarthome.",
@@ -478,7 +471,7 @@ app.post("/chat", async (req, res) => {
 
     // Chat completion with optimized parameters
     const chatCompletion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-3.5-turbo",
       messages: conversation,
       temperature: 0.7,
       max_tokens: 400,
