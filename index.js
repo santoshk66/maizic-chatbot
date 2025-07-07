@@ -98,12 +98,12 @@ const faqs = {
   "camera offline": "If your Maizic camera is offline, check the Wi-Fi signal (2.4GHz), reset the camera (hold reset button for 5 seconds), or update the V380 Pro app. Call 7042870887 for assistance.",
   "emi options amazon": "Amazon offers EMI options for Maizic products, depending on your bank. Check details at https://www.amazon.in/s?k=Maizic+Smarthome or contact Amazon support.",
   // New product-specific installation video entries
-  "supercam installation video": "Watch the Maizic Supercam 12MP 4K Solar Dual Lens installation video: https://www.youtube.com/watch?v=supercam-install-123.",
-  "ultracam installation video": "Watch the Maizic Ultracam Falcon 5MP installation video: https://www.youtube.com/watch?v=ultracam-install-456.",
-  "mini fox installation video": "Watch the Maizic Mini Fox 3MP FHD installation video: https://www.youtube.com/watch?v=minifox-install-789.",
-  "gorilla installation video": "Watch the Maizic Gorilla 5MP 4G installation video: https://www.youtube.com/watch?v=gorilla-install-012.",
-  "dashcam installation video": "Watch the Maizic Dashcam Pro installation video: https://www.youtube.com/watch?v=dashcam-install-345.",
-  "cinecast installation video": "Watch the Maizic CineCast Pro 4K projector installation video: https://www.youtube.com/watch?v=cinecast-install-678.",
+  "supercam installation video": "Watch the Maizic Supercam 12MP 4K Solar Dual Lens installation video: https://youtu.be/NkEJIpwCrGE.",
+  "ultracam installation video": "Watch the Maizic Ultracam Falcon 5MP installation video: https://youtu.be/-G-Eq2ljLh4.",
+  "mini fox installation video": "Watch the Maizic Mini Fox 3MP FHD installation video: https://youtu.be/umbiO8X5lKE.",
+  "gorilla installation video": "Watch the Maizic Gorilla 5MP 4G installation video: https://youtu.be/2msKb7wQCBs.",
+  "dashcam installation video": "Watch the Maizic Dashcam Pro installation video: https://youtu.be/lc-QW-OH2fY.",
+  "cinecast installation video": "Watch the Maizic CineCast Pro 4K projector installation video: https://youtu.be/895qb0NdYNI.",
   "swift smartwatch installation video": "Watch the Maizic Swift Smartwatch setup video: https://www.youtube.com/watch?v=swift-install-901.",
   "smart fan installation video": "Watch the Maizic Smart Fan installation video: https://www.youtube.com/watch?v=smartfan-install-234.",
   // Extended Product Queries
