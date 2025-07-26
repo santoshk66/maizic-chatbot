@@ -3,7 +3,6 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { OpenAI } from "openai";
 import { promises as fs } from "fs";
-import fetch from "node-fetch"; // Add node-fetch for HTTP requests
 
 // Load environment variables
 dotenv.config();
@@ -35,8 +34,6 @@ try {
 // In-memory conversation storage with session timeout
 const conversations = new Map();
 const SESSION_TIMEOUT = 60 * 60 * 1000; // 1 hour in milliseconds
-const TICKET_FIELDS = ["name", "email", "phone", "issue", "description"];
-const GOOGLE_SHEET_URL = process.env.GOOGLE_SHEET_URL || "YOUR_GOOGLE_SHEET_WEB_APP_URL"; // Add to .env
 
 // Comprehensive FAQ Database (350+ entries)
 const faqs = {
@@ -209,7 +206,6 @@ const faqs = {
   "projector for home office": "The Maizic CineCast Pro 4K is perfect for home offices with 8000 lumens and HDMI connectivity for professional use. Buy at https://www.flipkart.com/search?q=Maizic+Smarthome.",
   "camera for front door": "The Maizic Supercam 12MP 4K Solar Dual Lens is ideal for front doors with solar power, two-way audio, and motion detection. Buy at https://www.maizic.com.",
   "smartwatch for fitness": "The Maizic Swift Smartwatch tracks fitness metrics like steps, calories, and heart rate with precision. Buy at https://www.amazon.in/s?k=Maizic+Smarthome.",
-  
   // Extended Use Case Queries
   "camera for high-rise building": "The Maizic Gorilla 5MP 4G is ideal for high-rise buildings with 4G SIM support and long-range connectivity. Buy at https://www.flipkart.com/search?q=Maizic+Smarthome.",
   "smart fan for large rooms": "Maizic smart fans with high-speed settings are perfect for large rooms, offering app and voice control. Buy at https://www.maizic.com.",
@@ -383,17 +379,6 @@ You are a highly skilled, friendly, and professional customer care executive for
 - **Product Purchase**: Suggest https://www.maizic.com, Amazon, or Flipkart based on user preference.
 - **Replacement/Returns**: For replacement or returns, guide users to the platform’s policy (Amazon: 30-day returns, Flipkart: 30-day returns, maizic.com: contact support). Provide specific links and contact details.
 
-🎫 **Ticket Creation**:
-- When a user selects "Raise Ticket" or mentions raising a ticket, guide them to provide their name, email, phone number, issue, and description, one at a time.
-- Validate inputs: Email must include '@' and '.', phone must be 10 digits, issue and description must not be empty.
-- After collecting all details, confirm the ticket submission and inform the user it has been recorded.
-- Example flow:
-  - User: "Raise ticket"
-  - Bot: "Please provide your name to start raising a support ticket."
-  - User: "John Doe"
-  - Bot: "Thanks, John! Please provide your email address."
-  - (Continue until all fields are collected, then confirm submission.)
-
 🎯 **Response Guidelines**:
 - **Tone**: Friendly, polite, professional (e.g., “Happy to assist!” or “Let’s get that sorted!”).
 - **Length**: 2–4 sentences or bullet points for clarity. Avoid verbosity.
@@ -448,15 +433,7 @@ function getSimilarityScore(a, b) {
   return matchCount / Math.max(aWords.length, bWords.length);
 }
 
-function validateEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function validatePhone(phone) {
-  return /^\d{10}$/.test(phone);
-}
-
-// Chat endpoint (updated ticket creation logic)
+// Chat endpoint
 app.post("/chat", async (req, res) => {
   try {
     const { message, sessionId = "default" } = req.body;
@@ -464,88 +441,66 @@ app.post("/chat", async (req, res) => {
       return res.status(400).json({ reply: "**Maizic Smarthome Support**:\nMessage too long or empty. Please keep it under 1000 characters!" });
     }
 
+    // Normalize user message for FAQ matching
+    const normalizedMessage = message.toLowerCase().trim();
+
+    // Improved matching using similarity score
+    let bestMatch = null;
+    let highestScore = 0;
+    
+    for (const [question, answer] of Object.entries(faqs)) {
+      const score = getSimilarityScore(normalizedMessage, question);
+      if (score > 0.6 && score > highestScore) {
+        bestMatch = answer;
+        highestScore = score;
+      }
+    }
+    
+    if (bestMatch) {
+      await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot (FAQ): ${bestMatch}\n---\n`);
+      return res.json({ reply: `**Maizic Smarthome Support**:\n${bestMatch}` });
+    }
+
+    // Get or initialize conversation history
     let conversation = conversations.get(sessionId)?.messages || [
       { role: "system", content: systemPrompt }
     ];
-    let ticketData = conversations.get(sessionId)?.ticketData || {};
 
-    const normalizedMessage = message.toLowerCase().trim();
+    // Add user message
+    conversation.push({ role: "user", content: message });
 
-    // Handle ticket creation flow
-    if (normalizedMessage === "raise ticket" || ticketData.currentField) {
-      if (!ticketData.currentField) {
-        ticketData.currentField = TICKET_FIELDS[0];
-        conversation.push({ role: "user", content: message });
-        conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nPlease provide your name to start raising a support ticket." });
-        conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
-        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\nTicketData: ${JSON.stringify(ticketData)}\n---\n`);
-        return res.json({ reply: conversation[conversation.length - 1].content });
-      }
+    // Chat completion with optimized parameters
+    const chatCompletion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: conversation,
+      temperature: 0.7,
+      max_tokens: 400,
+      top_p: 1.0,
+      presence_penalty: 0.3,
+      frequency_penalty: 0.3
+    });
 
-      // Store the current input
-      ticketData[ticketData.currentField] = message.trim();
-      let validationError = null;
+    let reply = chatCompletion.choices[0]?.message?.content?.trim() || "Sorry, I couldn't understand that. Could you clarify, or contact our team at 7042870887?";
 
-      // Validate input based on the current field
-      if (ticketData.currentField === "email" && !validateEmail(message)) {
-        validationError = "**Maizic Smarthome Support**:\nPlease provide a valid email address (e.g., example@domain.com).";
-      } else if (ticketData.currentField === "phone" && !validatePhone(message)) {
-        validationError = "**Maizic Smarthome Support**:\nPlease provide a valid 10-digit phone number (e.g., 9876543210).";
-      } else if ((ticketData.currentField === "issue" || ticketData.currentField === "description") && message.trim().length < 5) {
-        validationError = `**Maizic Smarthome Support**:\nPlease provide a more detailed ${ticketData.currentField}.`;
-      }
-
-      if (validationError) {
-        conversation.push({ role: "user", content: message });
-        conversation.push({ role: "assistant", content: validationError });
-        conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
-        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${validationError}\nTicketData: ${JSON.stringify(ticketData)}\n---\n`);
-        return res.json({ reply: validationError });
-      }
-
-      // Move to the next field or submit the ticket
-      const currentFieldIndex = TICKET_FIELDS.indexOf(ticketData.currentField);
-      if (currentFieldIndex < TICKET_FIELDS.length - 1) {
-        ticketData.currentField = TICKET_FIELDS[currentFieldIndex + 1];
-        const fieldPrompts = {
-          email: "Thanks! Please provide your email address.",
-          phone: "Great! Please provide your 10-digit phone number.",
-          issue: "Thanks! Please specify the issue you're facing (e.g., 'camera not working').",
-          description: "Got it! Please provide a brief description of the issue."
-        };
-        conversation.push({ role: "user", content: message });
-        conversation.push({ role: "assistant", content: `**Maizic Smarthome Support**:\n${fieldPrompts[ticketData.currentField]}` });
-        conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
-        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\nTicketData: ${JSON.stringify(ticketData)}\n---\n`);
-        return res.json({ reply: conversation[conversation.length - 1].content });
-      } else {
-        // Submit ticket to Google Sheet
-        try {
-          const response = await fetch(GOOGLE_SHEET_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(ticketData)
-          });
-          const result = await response.json();
-          if (result.status !== "success") {
-            throw new Error(result.message || "Failed to submit ticket");
-          }
-          conversation.push({ role: "user", content: message });
-          conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nYour ticket has been submitted successfully! Our team will contact you soon. For urgent issues, call 7042870887." });
-          conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData: {} });
-          await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\nTicket: ${JSON.stringify(ticketData)}\n---\n`);
-          return res.json({ reply: conversation[conversation.length - 1].content });
-        } catch (error) {
-          conversation.push({ role: "user", content: message });
-          conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nFailed to submit ticket. Please try again or contact our team at 7042870887." });
-          conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
-          await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nError: ${error.message}\n---\n`);
-          return res.status(500).json({ reply: conversation[conversation.length - 1].content });
-        }
-      }
+    // Validate response
+    if (reply.toLowerCase().includes("i don’t know") || reply.length > 600) {
+      reply = "I’m not sure about that, but I’d be happy to connect you with our technical team at 7042870887 for further assistance!";
     }
 
-    // ... (rest of the code for FAQ and OpenAI remains unchanged)
+    // Format response as Markdown
+    reply = `**Maizic Smarthome Support**:\n${reply}`;
+
+    // Update conversation history
+    conversation.push({ role: "assistant", content: reply });
+    if (conversation.length > 10) {
+      conversation = [conversation[0], ...conversation.slice(-9)];
+    }
+    conversations.set(sessionId, { messages: conversation, lastActive: Date.now() });
+
+    // Log interaction
+    await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${reply}\n---\n`);
+
+    res.json({ reply });
   } catch (error) {
     console.error("Chatbot Error:", error);
     let userReply = "Something went wrong. Please try again or contact our support team at 7042870887.";
@@ -566,4 +521,4 @@ app.post("/clear-session", (req, res) => {
 
 app.listen(port, () => {
   console.log(`🚀 Maizic Smarthome Chatbot running at http://localhost:${port}`);
-});
+}); 
