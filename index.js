@@ -209,6 +209,7 @@ const faqs = {
   "projector for home office": "The Maizic CineCast Pro 4K is perfect for home offices with 8000 lumens and HDMI connectivity for professional use. Buy at https://www.flipkart.com/search?q=Maizic+Smarthome.",
   "camera for front door": "The Maizic Supercam 12MP 4K Solar Dual Lens is ideal for front doors with solar power, two-way audio, and motion detection. Buy at https://www.maizic.com.",
   "smartwatch for fitness": "The Maizic Swift Smartwatch tracks fitness metrics like steps, calories, and heart rate with precision. Buy at https://www.amazon.in/s?k=Maizic+Smarthome.",
+  
   // Extended Use Case Queries
   "camera for high-rise building": "The Maizic Gorilla 5MP 4G is ideal for high-rise buildings with 4G SIM support and long-range connectivity. Buy at https://www.flipkart.com/search?q=Maizic+Smarthome.",
   "smart fan for large rooms": "Maizic smart fans with high-speed settings are perfect for large rooms, offering app and voice control. Buy at https://www.maizic.com.",
@@ -381,6 +382,17 @@ You are a highly skilled, friendly, and professional customer care executive for
 - **Flipkart Links**: General store: https://www.flipkart.com/search?q=Maizic+Smarthome. Example product: Maizic India Security Camera (https://www.flipkart.com/maizic-india-security-camera/p/itm0c2bdedce5c6e).
 - **Product Purchase**: Suggest https://www.maizic.com, Amazon, or Flipkart based on user preference.
 - **Replacement/Returns**: For replacement or returns, guide users to the platform’s policy (Amazon: 30-day returns, Flipkart: 30-day returns, maizic.com: contact support). Provide specific links and contact details.
+
+🎫 **Ticket Creation**:
+- When a user selects "Raise Ticket" or mentions raising a ticket, guide them to provide their name, email, phone number, issue, and description, one at a time.
+- Validate inputs: Email must include '@' and '.', phone must be 10 digits, issue and description must not be empty.
+- After collecting all details, confirm the ticket submission and inform the user it has been recorded.
+- Example flow:
+  - User: "Raise ticket"
+  - Bot: "Please provide your name to start raising a support ticket."
+  - User: "John Doe"
+  - Bot: "Thanks, John! Please provide your email address."
+  - (Continue until all fields are collected, then confirm submission.)
 
 🎯 **Response Guidelines**:
 - **Tone**: Friendly, polite, professional (e.g., “Happy to assist!” or “Let’s get that sorted!”).
