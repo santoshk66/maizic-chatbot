@@ -484,11 +484,10 @@ app.post("/chat", async (req, res) => {
         return res.json({ reply: conversation[conversation.length - 1].content });
       }
 
-      // Collect ticket fields
-      const currentFieldIndex = TICKET_FIELDS.indexOf(ticketData.currentField);
+      // Store the current input
       ticketData[ticketData.currentField] = message.trim();
 
-      // Validate input
+      // Validate input based on the current field
       if (ticketData.currentField === "email" && !validateEmail(message)) {
         conversation.push({ role: "user", content: message });
         conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nPlease provide a valid email address (e.g., example@domain.com)." });
@@ -511,7 +510,8 @@ app.post("/chat", async (req, res) => {
         return res.json({ reply: conversation[conversation.length - 1].content });
       }
 
-      // Move to next field or submit ticket
+      // Move to the next field or submit the ticket
+      const currentFieldIndex = TICKET_FIELDS.indexOf(ticketData.currentField);
       if (currentFieldIndex < TICKET_FIELDS.length - 1) {
         ticketData.currentField = TICKET_FIELDS[currentFieldIndex + 1];
         const fieldPrompts = {
