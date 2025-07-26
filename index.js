@@ -456,7 +456,7 @@ function validatePhone(phone) {
   return /^\d{10}$/.test(phone);
 }
 
-// Chat endpoint (modified section)
+// Chat endpoint (updated ticket creation logic)
 app.post("/chat", async (req, res) => {
   try {
     const { message, sessionId = "default" } = req.body;
@@ -478,34 +478,29 @@ app.post("/chat", async (req, res) => {
         conversation.push({ role: "user", content: message });
         conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nPlease provide your name to start raising a support ticket." });
         conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
-        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\n---\n`);
+        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\nTicketData: ${JSON.stringify(ticketData)}\n---\n`);
         return res.json({ reply: conversation[conversation.length - 1].content });
       }
 
       // Store the current input
       ticketData[ticketData.currentField] = message.trim();
+      let validationError = null;
 
       // Validate input based on the current field
       if (ticketData.currentField === "email" && !validateEmail(message)) {
-        conversation.push({ role: "user", content: message });
-        conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nPlease provide a valid email address (e.g., example@domain.com)." });
-        conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
-        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\n---\n`);
-        return res.json({ reply: conversation[conversation.length - 1].content });
+        validationError = "**Maizic Smarthome Support**:\nPlease provide a valid email address (e.g., example@domain.com).";
+      } else if (ticketData.currentField === "phone" && !validatePhone(message)) {
+        validationError = "**Maizic Smarthome Support**:\nPlease provide a valid 10-digit phone number (e.g., 9876543210).";
+      } else if ((ticketData.currentField === "issue" || ticketData.currentField === "description") && message.trim().length < 5) {
+        validationError = `**Maizic Smarthome Support**:\nPlease provide a more detailed ${ticketData.currentField}.`;
       }
-      if (ticketData.currentField === "phone" && !validatePhone(message)) {
+
+      if (validationError) {
         conversation.push({ role: "user", content: message });
-        conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nPlease provide a valid 10-digit phone number (e.g., 9876543210)." });
+        conversation.push({ role: "assistant", content: validationError });
         conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
-        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\n---\n`);
-        return res.json({ reply: conversation[conversation.length - 1].content });
-      }
-      if ((ticketData.currentField === "issue" || ticketData.currentField === "description") && message.trim().length < 5) {
-        conversation.push({ role: "user", content: message });
-        conversation.push({ role: "assistant", content: `**Maizic Smarthome Support**:\nPlease provide a more detailed ${ticketData.currentField}.` });
-        conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
-        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\n---\n`);
-        return res.json({ reply: conversation[conversation.length - 1].content });
+        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${validationError}\nTicketData: ${JSON.stringify(ticketData)}\n---\n`);
+        return res.json({ reply: validationError });
       }
 
       // Move to the next field or submit the ticket
@@ -550,7 +545,7 @@ app.post("/chat", async (req, res) => {
       }
     }
 
-    // ... (rest of the code remains unchanged)
+    // ... (rest of the code for FAQ and OpenAI remains unchanged)
   } catch (error) {
     console.error("Chatbot Error:", error);
     let userReply = "Something went wrong. Please try again or contact our support team at 7042870887.";
