@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { OpenAI } from "openai";
 import { promises as fs } from "fs";
+import fetch from "node-fetch"; // Add node-fetch for HTTP requests
 
 // Load environment variables
 dotenv.config();
@@ -34,6 +35,8 @@ try {
 // In-memory conversation storage with session timeout
 const conversations = new Map();
 const SESSION_TIMEOUT = 60 * 60 * 1000; // 1 hour in milliseconds
+const TICKET_FIELDS = ["name", "email", "phone", "issue", "description"];
+const GOOGLE_SHEET_URL = process.env.GOOGLE_SHEET_URL || "YOUR_GOOGLE_SHEET_WEB_APP_URL"; // Add to .env
 
 // Comprehensive FAQ Database (350+ entries)
 const faqs = {
