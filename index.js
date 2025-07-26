@@ -436,6 +436,14 @@ function getSimilarityScore(a, b) {
   return matchCount / Math.max(aWords.length, bWords.length);
 }
 
+function validateEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validatePhone(phone) {
+  return /^\d{10}$/.test(phone);
+}
+
 // Chat endpoint
 app.post("/chat", async (req, res) => {
   try {
@@ -444,10 +452,104 @@ app.post("/chat", async (req, res) => {
       return res.status(400).json({ reply: "**Maizic Smarthome Support**:\nMessage too long or empty. Please keep it under 1000 characters!" });
     }
 
+    // Get or initialize conversation history
+    let conversation = conversations.get(sessionId)?.messages || [
+      { role: "system", content: systemPrompt }
+    ];
+    let ticketData = conversations.get(sessionId)?.ticketData || {};
+
     // Normalize user message for FAQ matching
     const normalizedMessage = message.toLowerCase().trim();
 
-    // Improved matching using similarity score
+    // Handle ticket creation flow
+    if (normalizedMessage === "raise ticket" || ticketData.currentField) {
+      if (!ticketData.currentField) {
+        ticketData.currentField = TICKET_FIELDS[0];
+        conversation.push({ role: "user", content: message });
+        conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nPlease provide your name to start raising a support ticket." });
+        conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
+        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\n---\n`);
+        return res.json({ reply: conversation[conversation.length - 1].content });
+      }
+
+      // Collect ticket fields
+      const currentFieldIndex = TICKET_FIELDS.indexOf(ticketData.currentField);
+      ticketData[ticketData.currentField] = message.trim();
+
+      // Validate input
+      if (ticketData.currentField === "email" && !validateEmail(message)) {
+        conversation.push({ role: "user", content: message });
+        conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nPlease provide a valid email address (e.g., example@domain.com)." });
+        conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
+        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\n---\n`);
+        return res.json({ reply: conversation[conversation.length - 1].content });
+      }
+      if (ticketData.currentField === "phone" && !validatePhone(message)) {
+        conversation.push({ role: "user", content: message });
+        conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nPlease provide a valid 10-digit phone number." });
+        conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
+        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\n---\n`);
+        return res.json({ reply: conversation[conversation.length - 1].content });
+      }
+      if ((ticketData.currentField === "issue" || ticketData.currentField === "description") && message.trim().length < 5) {
+        conversation.push({ role: "user", content: message });
+        conversation.push({ role: "assistant", content: `**Maizic Smarthome Support**:\nPlease provide a more detailed ${ticketData.currentField}.` });
+        conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
+        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\n---\n`);
+        return res.json({ reply: conversation[conversation.length - 1].content });
+      }
+
+      // Move to next field or submit ticket
+      if (currentFieldIndex < TICKET_FIELDS.length - 1) {
+        ticketData.currentField = TICKET_FIELDS[currentFieldIndex + 1];
+        const fieldPrompts = {
+          email: "Thanks! Please provide your email address.",
+          phone: "Great! Please provide your 10-digit phone number.",
+          issue: "Thanks! Please specify the issue you're facing (e.g., 'camera not working').",
+          description: "Got it! Please provide a brief description of the issue."
+        };
+        conversation.push({ role: "user", content: message });
+        conversation.push({ role: "assistant", content: `**Maizic Smarthome Support**:\n${fieldPrompts[ticketData.currentField]}` });
+        conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
+        await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\n---\n`);
+        return res.json({ reply: conversation[conversation.length - 1].content });
+      } else {
+        // Submit ticket to Google Sheet
+        try {
+          const response = await fetch(GOOGLE_SHEET_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(ticketData)
+          });
+          const result = await response.json();
+          if (result.status !== "success") {
+            throw new Error(result.message || "Failed to submit ticket");
+          }
+          conversation.push({ role: "user", content: message });
+          conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nYour ticket has been submitted successfully! Our team will contact you soon. For urgent issues, call 7042870887." });
+          conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData: {} });
+          await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\nTicket: ${JSON.stringify(ticketData)}\n---\n`);
+          return res.json({ reply: conversation[conversation.length - 1].content });
+        } catch (error) {
+          conversation.push({ role: "user", content: message });
+          conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nFailed to submit ticket. Please try again or contact our team at 7042870887." });
+          conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
+          await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nError: ${error.message}\n---\n`);
+          return res.status(500).json({ reply: conversation[conversation.length - 1].content });
+        }
+      }
+    }
+
+    // Handle "Chat with Me" or FAQ-based queries
+    if (normalizedMessage === "chat with me") {
+      conversation.push({ role: "user", content: message });
+      conversation.push({ role: "assistant", content: "**Maizic Smarthome Support**:\nHappy to chat! How can I assist you with Maizic products today? Ask about cameras, projectors, or anything else!" });
+      conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
+      await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${conversation[conversation.length - 1].content}\n---\n`);
+      return res.json({ reply: conversation[conversation.length - 1].content });
+    }
+
+    // FAQ matching
     let bestMatch = null;
     let highestScore = 0;
     
@@ -460,19 +562,15 @@ app.post("/chat", async (req, res) => {
     }
     
     if (bestMatch) {
+      conversation.push({ role: "user", content: message });
+      conversation.push({ role: "assistant", content: `**Maizic Smarthome Support**:\n${bestMatch}` });
+      conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
       await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot (FAQ): ${bestMatch}\n---\n`);
-      return res.json({ reply: `**Maizic Smarthome Support**:\n${bestMatch}` });
+      return res.json({ reply: conversation[conversation.length - 1].content });
     }
 
-    // Get or initialize conversation history
-    let conversation = conversations.get(sessionId)?.messages || [
-      { role: "system", content: systemPrompt }
-    ];
-
-    // Add user message
+    // Chat completion with OpenAI
     conversation.push({ role: "user", content: message });
-
-    // Chat completion with optimized parameters
     const chatCompletion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: conversation,
@@ -492,13 +590,13 @@ app.post("/chat", async (req, res) => {
 
     // Format response as Markdown
     reply = `**Maizic Smarthome Support**:\n${reply}`;
-
-    // Update conversation history
     conversation.push({ role: "assistant", content: reply });
+
+    // Limit conversation history
     if (conversation.length > 10) {
       conversation = [conversation[0], ...conversation.slice(-9)];
     }
-    conversations.set(sessionId, { messages: conversation, lastActive: Date.now() });
+    conversations.set(sessionId, { messages: conversation, lastActive: Date.now(), ticketData });
 
     // Log interaction
     await fs.appendFile("chat_logs.txt", `Session: ${sessionId}\nUser: ${message}\nBot: ${reply}\n---\n`);
